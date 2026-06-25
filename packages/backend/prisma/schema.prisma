@@ -1,0 +1,473 @@
+// NAZAR — Political Intelligence Platform
+// Core data model: clients, mentions, individuals, alerts, users
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// USERS & AUTH
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum UserRole {
+  SUPER_ADMIN
+  ADMIN
+  ANALYST
+  VIEWER
+}
+
+model User {
+  id             String    @id @default(cuid())
+  email          String    @unique
+  passwordHash   String
+  name           String
+  role           UserRole  @default(ANALYST)
+  isActive       Boolean   @default(true)
+  lastLoginAt    DateTime?
+  refreshTokens  RefreshToken[]
+  assignedClients ClientUser[]
+  createdAlerts  Alert[]
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@map("users")
+}
+
+model RefreshToken {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@map("refresh_tokens")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CLIENTS — politician/organization profiles
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum ClientType {
+  POLITICIAN
+  PARTY
+  ORGANIZATION
+  MINISTRY
+}
+
+enum ClientTier {
+  NATIONAL
+  STATE
+  DISTRICT
+  LOCAL
+}
+
+model Client {
+  id              String       @id @default(cuid())
+  name            String
+  nameHindi       String?
+  type            ClientType   @default(POLITICIAN)
+  tier            ClientTier   @default(STATE)
+  party           String?
+  constituency    String?
+  state           String?
+  bio             String?
+  photoUrl        String?
+  isActive        Boolean      @default(true)
+
+  // Social handles for monitoring
+  twitterHandle   String?
+  facebookPageId  String?
+  instagramHandle String?
+  youtubeChannelId String?
+  linkedinProfileId String?
+  telegramChannel String?
+
+  // Keyword watchlist (names, aliases, nicknames)
+  keywords        String[]
+
+  // Relations
+  users           ClientUser[]
+  mentions        Mention[]
+  alerts          Alert[]
+  responseAssets  ResponseAsset[]
+  individuals     ClientIndividual[]
+  ingestionConfigs IngestionConfig[]
+
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  @@map("clients")
+}
+
+model ClientUser {
+  clientId String
+  userId   String
+  client   Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  user     User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([clientId, userId])
+  @@map("client_users")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// MENTIONS — ingested social/web content
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum MentionSource {
+  TWITTER
+  FACEBOOK
+  INSTAGRAM
+  YOUTUBE
+  LINKEDIN
+  TELEGRAM
+  REDDIT
+  WHATSAPP_UPLOAD
+  HINDI_NEWS
+  ENGLISH_NEWS
+  WEB
+  MANUAL
+}
+
+enum PoliticalSentiment {
+  STRONGLY_POSITIVE
+  POSITIVE
+  NEUTRAL
+  NEGATIVE
+  STRONGLY_NEGATIVE
+  MIXED
+}
+
+enum ContentTone {
+  SUPPORTIVE
+  CRITICAL
+  INFLAMMATORY
+  SATIRICAL
+  FACTUAL
+  MISINFORMATION
+  THREATENING
+  NEUTRAL
+}
+
+model Mention {
+  id                String             @id @default(cuid())
+  clientId          String
+  client            Client             @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  // Source metadata
+  source            MentionSource
+  sourceId          String?            // platform-native ID
+  sourceUrl         String?
+  authorHandle      String?
+  authorName        String?
+  authorFollowers   Int?
+  authorVerified    Boolean            @default(false)
+  platform          String
+
+  // Content
+  contentOriginal   String             // raw text (may be Hindi/Hinglish)
+  contentTranslated String?            // English translation
+  contentSummaryEn  String?            // Claude-generated English summary
+  contentSummaryHi  String?            // Claude-generated Hindi summary
+  language          String             @default("en")
+
+  // Claude AI analysis
+  politicalSentiment PoliticalSentiment?
+  contentTone       ContentTone?
+  sentimentScore    Float?             // -1.0 to 1.0
+  topics            String[]           // from fixed taxonomy
+  namedEntities     Json?              // { politicians, parties, places, orgs }
+  isDisinformation  Boolean           @default(false)
+  threatLevel       Int?              // 0–10 scale
+
+  // Engagement
+  likes             Int               @default(0)
+  shares            Int               @default(0)
+  comments          Int               @default(0)
+  views             Int               @default(0)
+  reachEstimate     Int               @default(0)
+
+  // Processing state
+  processedByAI     Boolean           @default(false)
+  publishedAt       DateTime?
+  scrapedAt         DateTime          @default(now())
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+
+  // Linked individual who made the mention
+  individualId      String?
+  individual        Individual?       @relation(fields: [individualId], references: [id])
+
+  alerts            AlertMention[]
+
+  @@unique([source, sourceId])
+  @@index([clientId, createdAt(sort: Desc)])
+  @@index([clientId, politicalSentiment])
+  @@index([clientId, source])
+  @@index([publishedAt(sort: Desc)])
+  @@map("mentions")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// INDIVIDUALS — digital profiles of political actors
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum IndividualStance {
+  ALLY
+  THREAT
+  WATCHLIST
+  NEUTRAL
+}
+
+enum IndividualType {
+  POLITICIAN
+  JOURNALIST
+  INFLUENCER
+  ACTIVIST
+  BUREAUCRAT
+  ACADEMIC
+  TROLL_NETWORK
+  BOT_ACCOUNT
+  UNKNOWN
+}
+
+model Individual {
+  id              String          @id @default(cuid())
+  name            String
+  nameHindi       String?
+  type            IndividualType  @default(UNKNOWN)
+  party           String?
+  state           String?
+  bio             String?
+  photoUrl        String?
+
+  // Platform handles
+  twitterHandle   String?
+  facebookId      String?
+  instagramHandle String?
+  youtubeChannelId String?
+
+  // AI-computed scores (0–100 each, recalculated on each major mention)
+  influenceScore  Int             @default(0)
+  riskScore       Int             @default(0)
+  stanceScore     Float           @default(0)  // -1.0 (hostile) to 1.0 (ally)
+  stance          IndividualStance @default(NEUTRAL)
+
+  // Aggregated metrics
+  totalFollowers  Int             @default(0)
+  avgEngagement   Float           @default(0)
+
+  // Relations
+  mentions        Mention[]
+  clientProfiles  ClientIndividual[]
+
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  @@map("individuals")
+}
+
+// Per-client stance override (same individual may be ally to one client, threat to another)
+model ClientIndividual {
+  clientId        String
+  individualId    String
+  client          Client          @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  individual      Individual      @relation(fields: [individualId], references: [id], onDelete: Cascade)
+  stanceOverride  IndividualStance?
+  notes           String?
+  updatedAt       DateTime        @updatedAt
+
+  @@id([clientId, individualId])
+  @@map("client_individuals")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ALERTS — threat/opportunity notifications
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum AlertSeverity {
+  CRITICAL   // Immediate action required
+  HIGH
+  MEDIUM
+  LOW
+  INFO
+}
+
+enum AlertType {
+  VIRAL_NEGATIVE      // Negative content going viral
+  DISINFORMATION      // Detected fake news
+  COORDINATED_ATTACK  // Multiple accounts amplifying
+  SENTIMENT_SHIFT     // Sudden sentiment change
+  THREAT_ACTOR        // High-risk individual activity
+  CRISIS              // Crisis communication trigger
+  OPPORTUNITY         // Positive trend to amplify
+  COMPETITOR_MOVE     // Political rival action
+  MEDIA_SPIKE         // Sudden press coverage spike
+}
+
+enum AlertStatus {
+  OPEN
+  ACKNOWLEDGED
+  IN_PROGRESS
+  RESOLVED
+  DISMISSED
+}
+
+model Alert {
+  id              String        @id @default(cuid())
+  clientId        String
+  client          Client        @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  createdById     String?
+  createdBy       User?         @relation(fields: [createdById], references: [id])
+
+  type            AlertType
+  severity        AlertSeverity
+  status          AlertStatus   @default(OPEN)
+  title           String
+  description     String
+  aiSummary       String?       // Claude-generated briefing
+  recommendedActions String[]
+
+  // Auto-resolved at
+  resolvedAt      DateTime?
+  acknowledgedAt  DateTime?
+
+  mentions        AlertMention[]
+
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@index([clientId, status])
+  @@index([clientId, severity])
+  @@index([createdAt(sort: Desc)])
+  @@map("alerts")
+}
+
+model AlertMention {
+  alertId   String
+  mentionId String
+  alert     Alert   @relation(fields: [alertId], references: [id], onDelete: Cascade)
+  mention   Mention @relation(fields: [mentionId], references: [id], onDelete: Cascade)
+
+  @@id([alertId, mentionId])
+  @@map("alert_mentions")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// RESPONSE ASSETS — AI-generated communication assets
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum AssetType {
+  COUNTER_BRIEF
+  RAPID_RESPONSE_TWEET
+  PRESS_STATEMENT
+  PRESS_KIT
+  WHATSAPP_FORWARD
+  SOCIAL_CAPTION
+  TALKING_POINTS
+  FACT_CHECK
+  NARRATIVE_MEMO
+  MEDIA_PITCH
+  CRISIS_STATEMENT
+}
+
+enum AssetStatus {
+  DRAFT
+  APPROVED
+  PUBLISHED
+  ARCHIVED
+}
+
+model ResponseAsset {
+  id          String      @id @default(cuid())
+  clientId    String
+  client      Client      @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  type        AssetType
+  status      AssetStatus @default(DRAFT)
+  title       String
+  contentEn   String      // English version
+  contentHi   String?     // Hindi version
+  context     String?     // What triggered this asset
+  tags        String[]
+
+  // Which alert/mention triggered this
+  triggeredByAlertId   String?
+  triggeredByMentionId String?
+
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  @@map("response_assets")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// INGESTION CONFIG — per-source polling settings
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum IngestionSourceType {
+  TWITTER_SEARCH
+  TWITTER_USER_TIMELINE
+  FACEBOOK_PAGE
+  INSTAGRAM_HASHTAG
+  YOUTUBE_CHANNEL
+  YOUTUBE_SEARCH
+  LINKEDIN_SEARCH
+  TELEGRAM_CHANNEL
+  REDDIT_SEARCH
+  HINDI_NEWS_SCRAPE
+  ENGLISH_NEWS_SCRAPE
+  WEB_SCRAPE
+}
+
+model IngestionConfig {
+  id            String              @id @default(cuid())
+  clientId      String
+  client        Client              @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  sourceType    IngestionSourceType
+  config        Json                // source-specific params (handle, keywords, url, etc.)
+  isActive      Boolean             @default(true)
+  intervalMinutes Int               @default(15)
+  lastRunAt     DateTime?
+  lastRunStatus String?
+  errorCount    Int                 @default(0)
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+
+  @@map("ingestion_configs")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ANALYTICS SNAPSHOTS — hourly/daily aggregations
+// ─────────────────────────────────────────────────────────────────────────────
+
+model AnalyticsSnapshot {
+  id                String   @id @default(cuid())
+  clientId          String
+  period            String   // 'hourly' | 'daily' | 'weekly'
+  periodStart       DateTime
+  periodEnd         DateTime
+
+  totalMentions     Int      @default(0)
+  positiveCount     Int      @default(0)
+  negativeCount     Int      @default(0)
+  neutralCount      Int      @default(0)
+  threatCount       Int      @default(0)
+  viralCount        Int      @default(0)
+  estimatedReach    BigInt   @default(0)
+  avgSentimentScore Float    @default(0)
+  topTopics         Json     @default("[]")
+  topSources        Json     @default("[]")
+  topThreats        Json     @default("[]")
+
+  createdAt         DateTime @default(now())
+
+  @@unique([clientId, period, periodStart])
+  @@index([clientId, periodStart(sort: Desc)])
+  @@map("analytics_snapshots")
+}

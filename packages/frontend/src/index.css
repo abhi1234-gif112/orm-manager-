@@ -1,0 +1,94 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    box-sizing: border-box;
+  }
+
+  body {
+    @apply bg-nazar-bg text-nazar-text font-sans;
+    min-height: 100vh;
+  }
+
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    @apply bg-nazar-bg;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-nazar-border rounded-full;
+  }
+}
+
+@layer components {
+  .card {
+    @apply bg-nazar-card border border-nazar-border rounded-xl p-5;
+  }
+
+  .btn-primary {
+    @apply bg-nazar-accent hover:bg-blue-600 text-white font-medium px-4 py-2 rounded-lg transition-colors;
+  }
+
+  .btn-ghost {
+    @apply hover:bg-nazar-border text-nazar-text-secondary hover:text-nazar-text px-4 py-2 rounded-lg transition-colors;
+  }
+
+  .badge-threat {
+    @apply bg-red-900/40 text-red-400 border border-red-800/60 text-xs px-2 py-0.5 rounded-full font-medium;
+  }
+
+  .badge-warning {
+    @apply bg-amber-900/40 text-amber-400 border border-amber-800/60 text-xs px-2 py-0.5 rounded-full font-medium;
+  }
+
+  .badge-success {
+    @apply bg-emerald-900/40 text-emerald-400 border border-emerald-800/60 text-xs px-2 py-0.5 rounded-full font-medium;
+  }
+
+  .badge-info {
+    @apply bg-blue-900/40 text-blue-400 border border-blue-800/60 text-xs px-2 py-0.5 rounded-full font-medium;
+  }
+
+  .badge-neutral {
+    @apply bg-gray-800/60 text-gray-400 border border-gray-700/60 text-xs px-2 py-0.5 rounded-full font-medium;
+  }
+
+  .stat-card {
+    @apply card flex flex-col gap-1;
+  }
+
+  .input {
+    @apply bg-nazar-surface border border-nazar-border rounded-lg px-3 py-2 text-sm text-nazar-text
+           placeholder:text-nazar-muted focus:outline-none focus:border-nazar-accent transition-colors w-full;
+  }
+
+  /* Hindi text rendering */
+  .text-hindi {
+    @apply font-hindi;
+    font-feature-settings: 'kern' on;
+  }
+
+  /* Alert severity glow effects */
+  .severity-critical {
+    @apply border-l-4 border-l-red-500;
+    box-shadow: inset 4px 0 8px -2px rgba(239, 68, 68, 0.2);
+  }
+
+  .severity-high {
+    @apply border-l-4 border-l-orange-500;
+  }
+
+  .severity-medium {
+    @apply border-l-4 border-l-amber-500;
+  }
+
+  .severity-low {
+    @apply border-l-4 border-l-blue-500;
+  }
+}

@@ -1,0 +1,28 @@
+{
+  "name": "nazar-platform",
+  "version": "1.0.0",
+  "description": "NAZAR — Political Intelligence & Reputation Monitoring Platform",
+  "private": true,
+  "workspaces": [
+    "packages/backend",
+    "packages/frontend"
+  ],
+  "scripts": {
+    "dev:backend": "cd packages/backend && npm run dev",
+    "dev:frontend": "cd packages/frontend && npm run dev",
+    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "build:backend": "cd packages/backend && npm run build",
+    "build:frontend": "cd packages/frontend && npm run build",
+    "build": "npm run build:backend && npm run build:frontend",
+    "db:migrate": "cd packages/backend && npm run db:migrate",
+    "db:generate": "cd packages/backend && npm run db:generate",
+    "db:seed": "cd packages/backend && npm run db:seed",
+    "docker:up": "docker-compose up -d",
+    "docker:down": "docker-compose down",
+    "docker:build": "docker-compose build",
+    "install:all": "npm install && cd packages/backend && npm install && cd ../frontend && npm install"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}
