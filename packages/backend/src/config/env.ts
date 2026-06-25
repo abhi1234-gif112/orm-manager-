@@ -10,7 +10,7 @@ const envSchema = z.object({
   REDIS_URL: z.string().min(1),
   JWT_SECRET: z.string().min(32),
   JWT_REFRESH_SECRET: z.string().min(32),
-  ANTHROPIC_API_KEY: z.string().startsWith('sk-ant-'),
+  ANTHROPIC_API_KEY: z.string().min(10),
   FRONTEND_URL: z.string().default('http://localhost:5173'),
 
   // Optional — ingestion works even without all keys
