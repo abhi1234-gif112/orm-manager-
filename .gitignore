@@ -43,3 +43,4 @@ packages/backend/.playwright/
 
 # Temp uploads
 packages/backend/uploads/
+dump.rdb
