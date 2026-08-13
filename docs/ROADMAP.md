@@ -22,13 +22,16 @@ phase, only implementation.
 - `docs/PRD.md`, `docs/EDITORIAL_POLICY.md`, `docs/SECURITY.md` written (referenced but not required for Phase 0 per spec §42)
 - **Exit criterion:** an admin can log in, register a source, and see it listed — nothing auto-ingests yet.
 
-## Phase 2 — Ingestion
+## Phase 2 — Ingestion ✅
 
-- RSS/Atom connector, one approved web-source connector, source health monitoring (`sources.last_checked`, `failure_count`, backoff)
-- Scheduled ingestion (APScheduler jobs or n8n-triggered)
-- Dedup layers 1–2 (hash, title similarity via `pg_trgm`)
-- `articles` populated end-to-end: discovered → extracted
-- **Exit criterion:** registered sources produce `articles` rows automatically on a schedule, with duplicates suppressed at the hash/title layer (not yet clustered into Stories).
+- [x] RSS/Atom connector (`backend/app/ingestion/sources/rss.py`), one approved web-source connector (`.../sources/web.py`, listing-page + single-page modes), source health monitoring (`sources.last_checked`, `failure_count`, robots_txt_checked_at, auto-deactivation past `INGESTION_FAILURE_THRESHOLD`)
+- [x] Scheduled ingestion (APScheduler `AsyncIOScheduler`, wired into the FastAPI lifespan, disabled in tests)
+- [x] Dedup layers 1–2 (`backend/app/services/dedup.py`: hash exact-match, `pg_trgm` title similarity) — migration `89dee3155d70` adds the `pg_trgm` extension, GIN trigram index, and `uq_articles_source_hash` unique constraint
+- [x] robots.txt respected before every fetch (`backend/app/ingestion/robots.py`)
+- [x] `articles` populated end-to-end: discovered → extracted, plus `GET /api/v1/articles` and manual `POST /api/v1/sources/{id}/ingest` trigger
+- [x] 12 new tests (connectors with mocked network, pipeline with a stub connector, dedup logic, API) — 27/27 passing
+- [x] Live-verified against a real RSS feed (not just mocks): first poll stored 20 articles, re-poll fetched 20/stored 0/duplicate 20 — hash dedup confirmed idempotent end-to-end
+- **Exit criterion — met:** registered sources produce `articles` rows automatically on a schedule, with duplicates suppressed at the hash/title layer (not yet clustered into Stories).
 
 ## Phase 3 — Intelligence
 

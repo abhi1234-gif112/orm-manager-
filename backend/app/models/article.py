@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 
 from pgvector.sqlalchemy import Vector
-from sqlalchemy import DateTime, Enum, ForeignKey, String, Text
+from sqlalchemy import DateTime, Enum, ForeignKey, Index, String, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -14,6 +14,15 @@ EMBEDDING_DIM = 1536
 
 class Article(Base, UUIDPrimaryKeyMixin):
     __tablename__ = "articles"
+    __table_args__ = (
+        UniqueConstraint("source_id", "hash", name="uq_articles_source_hash"),
+        Index(
+            "ix_articles_title_trgm",
+            "title",
+            postgresql_using="gin",
+            postgresql_ops={"title": "gin_trgm_ops"},
+        ),
+    )
 
     source_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("sources.id"), nullable=False

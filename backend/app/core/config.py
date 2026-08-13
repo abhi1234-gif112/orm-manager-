@@ -31,6 +31,16 @@ class Settings(BaseSettings):
     S3_ACCESS_KEY: str = ""
     S3_SECRET_KEY: str = ""
 
+    # Ingestion (Phase 2 -- see docs/ROADMAP.md)
+    INGESTION_SCHEDULER_ENABLED: bool = True
+    INGESTION_POLL_INTERVAL_SECONDS: int = 900
+    INGESTION_HTTP_TIMEOUT_SECONDS: float = 15.0
+    INGESTION_MAX_ITEMS_PER_SOURCE: int = 50
+    INGESTION_MAX_LINKS_PER_WEB_SOURCE: int = 20
+    INGESTION_FAILURE_THRESHOLD: int = 10
+    INGESTION_TITLE_SIMILARITY_THRESHOLD: float = 0.55
+    INGESTION_TITLE_SIMILARITY_WINDOW_DAYS: int = 7
+
 
 @lru_cache
 def get_settings() -> Settings:

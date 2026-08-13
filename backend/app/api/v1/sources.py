@@ -6,9 +6,11 @@ from sqlalchemy.orm import Session
 from app.api.deps import get_current_user
 from app.core.permissions import require_editor
 from app.database.session import get_db
+from app.ingestion.pipeline import ingest_source
 from app.models.enums import AuditActorType
 from app.models.source import Source
 from app.models.user import User
+from app.schemas.ingestion import IngestionResult
 from app.schemas.source import SourceCreate, SourceRead, SourceUpdate
 from app.services.audit import record_audit_event
 
@@ -116,3 +118,30 @@ def deactivate_source(
         target_id=source.id,
     )
     db.commit()
+
+
+@router.post("/{source_id}/ingest", response_model=IngestionResult)
+async def trigger_ingestion(
+    source_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_editor),
+) -> IngestionResult:
+    """Manually runs one ingestion pass for a source, outside its scheduled cadence.
+    Useful for testing a newly-registered source before waiting for the next poll."""
+    source = db.get(Source, source_id)
+    if source is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Source not found")
+
+    result = await ingest_source(db, source)
+
+    record_audit_event(
+        db,
+        actor_type=AuditActorType.USER,
+        actor_id=user.id,
+        action="source.ingestion_triggered",
+        target_type="source",
+        target_id=source.id,
+        after_state=result.model_dump(),
+    )
+    db.commit()
+    return result

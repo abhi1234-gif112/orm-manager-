@@ -7,6 +7,7 @@ os.environ.setdefault(
 os.environ.setdefault(
     "SUPABASE_JWT_SECRET", "test-secret-not-for-production-01234567890123456789"
 )
+os.environ.setdefault("INGESTION_SCHEDULER_ENABLED", "false")
 
 import uuid  # noqa: E402
 
