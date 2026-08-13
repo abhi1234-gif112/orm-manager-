@@ -1,13 +1,30 @@
 import os
+import sys
+
+DEFAULT_TEST_DATABASE_URL = (
+    "postgresql+psycopg://saptanga:saptanga@localhost:5432/saptanga_newsroom_test"
+)
+
+# This suite calls drop_all() and deletes every row between tests, so pointing it
+# at a real database destroys it. DATABASE_URL is deliberately IGNORED here --
+# a developer with it exported for normal work (the common case) would otherwise
+# have their development database silently wiped by running pytest. Override the
+# test database only via TEST_DATABASE_URL.
+_test_database_url = os.environ.get("TEST_DATABASE_URL", DEFAULT_TEST_DATABASE_URL)
+
+if "test" not in _test_database_url.rsplit("/", 1)[-1]:
+    sys.exit(
+        "Refusing to run tests: the target database name in TEST_DATABASE_URL does not "
+        f"contain 'test' ({_test_database_url!r}).\nThis suite drops tables and deletes "
+        "rows -- it must never point at a real database."
+    )
 
 # Must be set before any `app.*` import so pydantic-settings picks them up.
-os.environ.setdefault(
-    "DATABASE_URL", "postgresql+psycopg://saptanga:saptanga@localhost:5432/saptanga_newsroom_test"
-)
+os.environ["DATABASE_URL"] = _test_database_url
 os.environ.setdefault(
     "SUPABASE_JWT_SECRET", "test-secret-not-for-production-01234567890123456789"
 )
-os.environ.setdefault("INGESTION_SCHEDULER_ENABLED", "false")
+os.environ["INGESTION_SCHEDULER_ENABLED"] = "false"
 
 import uuid  # noqa: E402
 
