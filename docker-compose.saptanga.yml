@@ -1,0 +1,114 @@
+name: saptanga-newsroom
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${SAPTANGA_POSTGRES_USER:-saptanga}
+      POSTGRES_PASSWORD: ${SAPTANGA_POSTGRES_PASSWORD:-saptanga}
+      POSTGRES_DB: ${SAPTANGA_POSTGRES_DB:-saptanga_newsroom}
+    volumes:
+      - saptanga_postgres_data:/var/lib/postgresql/data
+    ports:
+      - "${SAPTANGA_POSTGRES_PORT:-5433}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${SAPTANGA_POSTGRES_USER:-saptanga}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    volumes:
+      - saptanga_redis_data:/data
+    ports:
+      - "${SAPTANGA_REDIS_PORT:-6380}:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      ENVIRONMENT: ${ENVIRONMENT:-development}
+      DATABASE_URL: postgresql+psycopg://${SAPTANGA_POSTGRES_USER:-saptanga}:${SAPTANGA_POSTGRES_PASSWORD:-saptanga}@postgres:5432/${SAPTANGA_POSTGRES_DB:-saptanga_newsroom}
+      SUPABASE_URL: ${SUPABASE_URL}
+      SUPABASE_JWT_SECRET: ${SUPABASE_JWT_SECRET}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      S3_ENDPOINT_URL: ${S3_ENDPOINT_URL}
+      S3_BUCKET: ${S3_BUCKET:-saptanga-newsroom-media}
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY}
+      S3_SECRET_KEY: ${S3_SECRET_KEY}
+      INSTAGRAM_ACCESS_TOKEN: ${INSTAGRAM_ACCESS_TOKEN}
+      INSTAGRAM_BUSINESS_ACCOUNT_ID: ${INSTAGRAM_BUSINESS_ACCOUNT_ID}
+      X_API_KEY: ${X_API_KEY}
+      X_API_SECRET: ${X_API_SECRET}
+      X_ACCESS_TOKEN: ${X_ACCESS_TOKEN}
+      X_ACCESS_SECRET: ${X_ACCESS_SECRET}
+      CORS_ORIGINS: '["http://localhost:${SAPTANGA_WEBSITE_PORT:-3000}","http://localhost:${SAPTANGA_NEWSROOM_PORT:-3001}"]'
+    ports:
+      - "${SAPTANGA_BACKEND_PORT:-8000}:8000"
+
+  website:
+    build:
+      context: ./frontend/website
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      - backend
+    environment:
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000/api/v1}
+    ports:
+      - "${SAPTANGA_WEBSITE_PORT:-3000}:3000"
+
+  newsroom:
+    build:
+      context: ./frontend/newsroom
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000/api/v1}
+        NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL}
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+    restart: unless-stopped
+    depends_on:
+      - backend
+    environment:
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000/api/v1}
+      NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+    ports:
+      - "${SAPTANGA_NEWSROOM_PORT:-3001}:3000"
+
+  # Cross-service workflow glue only (e.g. scheduled ingestion triggers, notification
+  # fan-out) -- core editorial/publishing logic never lives in an n8n workflow.
+  # See docs/ARCHITECTURE.md section 7.
+  n8n:
+    image: n8nio/n8n:latest
+    restart: unless-stopped
+    environment:
+      N8N_BASIC_AUTH_ACTIVE: "true"
+      N8N_BASIC_AUTH_USER: ${N8N_BASIC_AUTH_USER}
+      N8N_BASIC_AUTH_PASSWORD: ${N8N_BASIC_AUTH_PASSWORD}
+    volumes:
+      - saptanga_n8n_data:/home/node/.n8n
+      - ./workflows:/home/node/workflows
+    ports:
+      - "${SAPTANGA_N8N_PORT:-5678}:5678"
+
+volumes:
+  saptanga_postgres_data:
+  saptanga_redis_data:
+  saptanga_n8n_data:

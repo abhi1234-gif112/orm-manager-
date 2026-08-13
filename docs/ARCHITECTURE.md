@@ -73,7 +73,7 @@ Two properties are structural, not aspirational:
 | Object storage | S3-compatible (MinIO locally, S3/R2 in production) | Media assets (images, video, generated visuals) |
 | Auth | Supabase Auth (V1) | Email/password + magic link for editors; JWT verified by FastAPI middleware; RBAC enforced in `app/core/permissions.py`, not just at the UI |
 | Observability | Structured JSON logging (`structlog`) everywhere; OpenTelemetry-compatible tracing hooks reserved for Langfuse | No Langfuse dependency in V1 — the interface is designed so it can be added without refactoring agent call sites |
-| Deployment | Docker Compose (V1); `docker-compose.yml` at repo root covers Postgres, Redis (task queue only, not Redis-as-DB), backend, frontend, n8n | |
+| Deployment | Docker Compose (V1); `docker-compose.saptanga.yml` at repo root covers Postgres+pgvector, Redis (task queue only, not Redis-as-DB), backend, both frontend apps, n8n | Named `docker-compose.saptanga.yml`/`.env.saptanga.example`, not the bare `docker-compose.yml`/`.env.example` — those paths are already NAZAR's; kept as documented in §0 |
 
 ## 3. Repository Structure
 
